@@ -1507,24 +1507,28 @@ function Read-SpfRecord {
 
                     # Include mechanism
                     elseif ($Term -match '^(?<Qualifier>[+-~?])?include:(?<Value>.+)$') {
-                        $LookupCount++
-                        Write-Verbose '-----INCLUDE-----'
-                        Write-Verbose "Looking up include $($Matches.Value)"
-                        $IncludeLookup = Read-SpfRecord -Domain $Matches.Value -Level 'Include'
+                        if ($Matches.Value -ne $Domain) {
+                            $LookupCount++
+                            Write-Verbose '-----INCLUDE-----'
+                            Write-Verbose "Looking up include $($Matches.Value)"
+                            $IncludeLookup = Read-SpfRecord -Domain $Matches.Value -Level 'Include'
 
-                        if ([string]::IsNullOrEmpty($IncludeLookup.Record) -and $Level -eq 'Parent') {
-                            Write-Verbose '-----END INCLUDE (SPF MISSING)-----'
-                            $ValidationFails.Add("Include lookup for $($Matches.Value) does not contain a SPF record, this will result in a failure.") | Out-Null
+                            if ([string]::IsNullOrEmpty($IncludeLookup.Record) -and $Level -eq 'Parent') {
+                                Write-Verbose '-----END INCLUDE (SPF MISSING)-----'
+                                $ValidationFails.Add("Include lookup for $($Matches.Value) does not contain a SPF record, this will result in a failure.") | Out-Null
+                                $Status = 'permerror'
+                            } else {
+                                Write-Verbose '-----END INCLUDE (SPF FOUND)-----'
+                                $RecordList.Add($IncludeLookup) | Out-Null
+                                $ValidationFails.AddRange([string[]]$IncludeLookup.ValidationFails) | Out-Null
+                                $ValidationWarns.AddRange([string[]]$IncludeLookup.ValidationWarns) | Out-Null
+                                $ValidationPasses.AddRange([string[]]$IncludeLookup.ValidationPasses) | Out-Null
+                                $IPAddresses.AddRange([string[]]$IncludeLookup.IPAddresses) | Out-Null
+                            }
+                        } else {
+                            Write-Verbose "-----END INCLUDE (INFINITE LOOP -> $Domain SHOULD NOT INCLUDE ITSELF)-----"
+                            $ValidationFails.Add("Include lookup for $($Matches.Value) should not exist. It will cause an infinite loop.") | Out-Null
                             $Status = 'permerror'
-                        }
-
-                        else {
-                            Write-Verbose '-----END INCLUDE (SPF FOUND)-----'
-                            $RecordList.Add($IncludeLookup) | Out-Null
-                            $ValidationFails.AddRange([string[]]$IncludeLookup.ValidationFails) | Out-Null
-                            $ValidationWarns.AddRange([string[]]$IncludeLookup.ValidationWarns) | Out-Null
-                            $ValidationPasses.AddRange([string[]]$IncludeLookup.ValidationPasses) | Out-Null
-                            $IPAddresses.AddRange([string[]]$IncludeLookup.IPAddresses) | Out-Null
                         }
                     }
 
@@ -1841,7 +1845,7 @@ function Read-SpfRecord {
     # Output SpfResults object
     $SpfResults
 }
-#EndRegion './Public/Records/Read-SPFRecord.ps1' 549
+#EndRegion './Public/Records/Read-SPFRecord.ps1' 553
 #Region './Public/Records/Read-TlsRptRecord.ps1' 0
 function Read-TlsRptRecord {
     <#
@@ -2046,6 +2050,7 @@ function Read-WhoisRecord {
     # Whois parser, generic Property: Value format with some multi-line support and comment handlers
     $WhoisRegex = '^(?!(?:%|>>>|-+|#|[*]))[^\S\n]*(?<PropName>.+?):(?:[\r\n]+)?(:?(?!([0-9]|[/]{2}))[^\S\r\n]*(?<PropValue>.+))?$'
 
+    Write-Verbose "Querying WHOIS Server: $Server"
     # TCP Client for Whois
     $Client = New-Object System.Net.Sockets.TcpClient($Server, 43)
     try {
@@ -2121,7 +2126,7 @@ function Read-WhoisRecord {
                 $LastResult = $Results
                 try {
                     $Results = Read-WhoisRecord -Query $Query -Server $ReferralServer -Port $Port
-                    if ($Results._Raw -Match '(No match|Not Found|No Data|The queried object does not exist)' -and $TopLevelReferrers -notcontains $Server) {
+                    if ([string]::IsNullOrEmpty($Results._Raw) -or ($Results._Raw -Match '(No match|Not Found|No Data|The queried object does not exist)' -and $TopLevelReferrers -notcontains $Server)) {
                         $Results = $LastResult
                     } else {
                         foreach ($s in $Results._ReferralServers) {
@@ -2168,7 +2173,7 @@ function Read-WhoisRecord {
     # Return Whois results as PSObject
     $WhoisResults
 }
-#EndRegion './Public/Records/Read-WhoisRecord.ps1' 174
+#EndRegion './Public/Records/Read-WhoisRecord.ps1' 175
 #Region './Public/Resolver/Resolve-DnsHttpsQuery.ps1' 0
 function Resolve-DnsHttpsQuery {
     <#
