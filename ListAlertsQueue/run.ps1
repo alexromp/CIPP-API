@@ -11,7 +11,7 @@ Write-LogMessage -user $request.headers.'x-ms-client-principal' -API $APINAME -m
 Write-Host 'PowerShell HTTP trigger function processed a request.'
 $Table = Get-CIPPTable -TableName 'SchedulerConfig'
 $Filter = "PartitionKey eq 'Alert'"
-$QueuedApps = Get-AzDataTableEntity @Table -Filter $Filter
+$QueuedApps = Get-CIPPAzDataTableEntity @Table -Filter $Filter
 
 $CurrentStandards = foreach ($QueueFile in $QueuedApps) {
     [PSCustomObject]@{
@@ -32,6 +32,8 @@ $CurrentStandards = foreach ($QueueFile in $QueuedApps) {
         DepTokenExpiry    = [bool]$QueueFile.DepTokenExpiry
         NoCAConfig        = [bool]$QueueFile.NoCAConfig
         SecDefaultsUpsell = [bool]$QueueFile.SecDefaultsUpsell
+        SharepointQuota   = [bool]$QueueFile.SharePointQuota
+        ExpiringLicenses  = [bool]$QueueFile.ExpiringLicenses
         tenantId          = $QueueFile.tenantid
     }
 }

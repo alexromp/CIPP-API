@@ -7,23 +7,26 @@ try {
     Write-LogMessage -user $request.headers.'x-ms-client-principal' -API $APINAME  -message "Accessed this API" -Sev "Debug"
     $Username = $request.body.user
     $Tenantfilter = $request.body.tenantfilter
-    $message = $Request.body.input
-    #$userid = (New-GraphGetRequest -uri "https://graph.microsoft.com/beta/users/$($username)" -tenantid $Tenantfilter).id
+    if ($Request.body.input) {
+        $InternalMessage = $Request.body.input
+        $ExternalMessage = $Request.body.input
+    }
+    else {
+        $InternalMessage = $Request.body.InternalMessage
+        $ExternalMessage = $Request.body.ExternalMessage
+    }
+    $StartTime = $Request.body.StartTime
+    $EndTime = $Request.body.EndTime
+    
     $Results = try {
-        if (!$Request.Body.Disable) {
-            $OoO = New-ExoRequest -tenantid $TenantFilter -cmdlet "Set-MailboxAutoReplyConfiguration" -cmdParams @{Identity = $request.body.user; AutoReplyState = "Enabled"; InternalMessage = $message; ExternalMessage = $message }
-            "added Out-of-office to $username - Message is $($message)"
-            Write-LogMessage -user $request.headers.'x-ms-client-principal' -API $APINAME  -message "Set Out-of-office for $($username)" -Sev "Info" -tenant $TenantFilter
+        if ($Request.Body.AutoReplyState -ne "Scheduled") {
+            Set-CIPPOutOfOffice -userid $Request.body.user -tenantFilter $TenantFilter -APIName $APINAME -ExecutingUser $request.headers.'x-ms-client-principal' -InternalMessage $InternalMessage -ExternalMessage $ExternalMessage -State $Request.Body.AutoReplyState
         }
         else {
-            $OoO = New-ExoRequest -tenantid $TenantFilter -cmdlet "Set-MailboxAutoReplyConfiguration" -cmdParams @{Identity = $request.body.user; AutoReplyState = "Disabled" }
-            "Removed Out-of-office for $username"
-            Write-LogMessage -user $request.headers.'x-ms-client-principal' -API $APINAME  -message "Disable out of office for $($username)" -Sev "Info" -tenant $TenantFilter
+            Set-CIPPOutOfOffice -userid $Request.body.user -tenantFilter $TenantFilter -APIName $APINAME -ExecutingUser $request.headers.'x-ms-client-principal' -InternalMessage $InternalMessage -ExternalMessage $ExternalMessage -StartTime $StartTime -EndTime $EndTime -State $Request.Body.AutoReplyState
         }
-
     }
     catch {
-        Write-LogMessage -user $request.headers.'x-ms-client-principal' -API $APINAME  -message "Could not add OOO for $($username)" -Sev "Error" -tenant $TenantFilter
         "Could not add out of office message for $($username). Error: $($_.Exception.Message)"
     }
 

@@ -9,6 +9,7 @@ Write-LogMessage -user $request.headers.'x-ms-client-principal' -API $APINAME -m
 
 # Write to the Azure Functions log stream.
 Write-Host 'PowerShell HTTP trigger function processed a request.'
+$sev = ([pscustomobject]$Request.body.Severity).value -join (',')
 $results = try { 
     $Table = Get-CIPPTable -TableName SchedulerConfig
     $SchedulerConfig = @{
@@ -16,10 +17,12 @@ $results = try {
         'tenantid'          = 'TenantId'
         'type'              = 'CIPPNotifications'
         'schedule'          = 'Every 15 minutes'
+        'Severity'          = [string]$sev
         'email'             = "$($Request.Body.Email)"
         'webhook'           = "$($Request.Body.Webhook)"
         'onePerTenant'      = [boolean]$Request.Body.onePerTenant
         'sendtoIntegration' = [boolean]$Request.Body.sendtoIntegration
+        'includeTenantId'   = [boolean]$Request.Body.includeTenantId
         'PartitionKey'      = 'CippNotifications'
         'RowKey'            = 'CippNotifications'
     }
@@ -27,8 +30,7 @@ $results = try {
         $SchedulerConfig[([pscustomobject]$logvalue.value)] = $true 
     }
 
-
-    Add-AzDataTableEntity @Table -Entity $SchedulerConfig -Force | Out-Null
+    Add-CIPPAzDataTableEntity @Table -Entity $SchedulerConfig -Force | Out-Null
     'Successfully set the configuration'
 }
 catch {

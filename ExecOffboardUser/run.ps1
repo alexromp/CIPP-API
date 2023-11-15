@@ -23,7 +23,7 @@ try {
             Set-CIPPResetPassword -tenantFilter $tenantFilter -userid $username -ExecutingUser $request.headers.'x-ms-client-principal' -APIName "ExecOffboardUser"
         }
         { $_.RemoveGroups -eq 'true' } { 
-            Remove-CIPPGroups -userid $userid -tenantFilter $Tenantfilter -ExecutingUser $request.headers.'x-ms-client-principal' -APIName "ExecOffboardUser"
+            Remove-CIPPGroups -userid $userid -tenantFilter $Tenantfilter -ExecutingUser $request.headers.'x-ms-client-principal' -APIName "ExecOffboardUser" -Username "$Username"
         }
 
         { $_."HideFromGAL" -eq 'true' } {
@@ -34,17 +34,18 @@ try {
         }
 
         { $_."OnedriveAccess" -ne "" } { 
-            Set-CIPPOnedriveAccess -tenantFilter $tenantFilter -userid $username -OnedriveAccessUser $request.body.OnedriveAccess -ExecutingUser $request.headers.'x-ms-client-principal' -APIName "ExecOffboardUser"
+            $request.body.OnedriveAccess | ForEach-Object { Set-CIPPOnedriveAccess -tenantFilter $tenantFilter -userid $username -OnedriveAccessUser $_.value -ExecutingUser $request.headers.'x-ms-client-principal' -APIName "ExecOffboardUser" }
         }
+
         { $_."AccessNoAutomap" -ne "" } { 
-            Set-CIPPMailboxAccess -tenantFilter $tenantFilter -userid $username -AccessUser $request.body.AccessNoAutomap -Automap $true -AccessRights @("FullAccess") -ExecutingUser $request.headers.'x-ms-client-principal' -APIName "ExecOffboardUser"
+            $request.body.AccessNoAutomap | ForEach-Object { Set-CIPPMailboxAccess -tenantFilter $tenantFilter -userid $username -AccessUser $_.value -Automap $false -AccessRights @("FullAccess") -ExecutingUser $request.headers.'x-ms-client-principal' -APIName "ExecOffboardUser" }
         }
         { $_."AccessAutomap" -ne "" } { 
-            Set-CIPPMailboxAccess -tenantFilter $tenantFilter -userid $username -AccessUser $request.body.AccessNoAutomap -Automap $false -AccessRights @("FullAccess") -ExecutingUser $request.headers.'x-ms-client-principal' -APIName "ExecOffboardUser"
+            $request.body.AccessAutomap | ForEach-Object { Set-CIPPMailboxAccess -tenantFilter $tenantFilter -userid $username -AccessUser $_.value -Automap $true -AccessRights @("FullAccess") -ExecutingUser $request.headers.'x-ms-client-principal' -APIName "ExecOffboardUser" }
         }
     
         { $_."OOO" -ne "" } { 
-            Set-CIPPOutOfOffice -tenantFilter $tenantFilter -userid $username -OOO $request.body.OOO -ExecutingUser $request.headers.'x-ms-client-principal' -APIName "ExecOffboardUser"
+            Set-CIPPOutOfOffice -tenantFilter $tenantFilter -userid $username -InternalMessage $request.body.OOO -ExternalMessage $request.body.OOO -ExecutingUser $request.headers.'x-ms-client-principal' -APIName "ExecOffboardUser"
         }
         { $_."forward" -ne "" } { 
             Set-CIPPForwarding -userid $userid -username $username -tenantFilter $Tenantfilter -Forward $request.body.forward -KeepCopy [bool]$request.body.keepCopy -ExecutingUser $request.headers.'x-ms-client-principal' -APIName "ExecOffboardUser"
@@ -63,6 +64,15 @@ try {
 
         { $_."RemoveMobile" -eq 'true' } {
             Remove-CIPPMobileDevice -userid $userid -username $Username -tenantFilter $Tenantfilter -ExecutingUser $request.headers.'x-ms-client-principal' -APIName "ExecOffboardUser"
+        }
+        { $_."RemovePermissions" } {
+            $object = [PSCustomObject]@{
+                TenantFilter  = $tenantFilter
+                User          = $username
+                executingUser = $request.headers.'x-ms-client-principal'
+            }
+            Push-OutputBinding -Name Msg -Value $object
+            "Removal of permissions queued. This task will run in the background and send it's results to the logbook."
         }
     
     }
