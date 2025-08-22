@@ -15,7 +15,9 @@ function New-GraphGetRequest {
         $Caller,
         [switch]$ComplexFilter,
         [switch]$CountOnly,
-        [switch]$IncludeResponseHeaders
+        [switch]$IncludeResponseHeaders,
+        [hashtable]$extraHeaders,
+        [switch]$ReturnRawResponse
     )
 
     if ($NoAuthCheck -eq $false) {
@@ -35,7 +37,11 @@ function New-GraphGetRequest {
             $headers['ConsistencyLevel'] = 'eventual'
         }
         $nextURL = $uri
-
+        if ($extraHeaders) {
+            foreach ($key in $extraHeaders.Keys) {
+                $headers[$key] = $extraHeaders[$key]
+            }
+        }
         # Track consecutive Graph API failures
         $TenantsTable = Get-CippTable -tablename Tenants
         $Filter = "PartitionKey eq 'Tenants' and (defaultDomainName eq '{0}' or customerId eq '{0}')" -f $tenantid
@@ -60,8 +66,24 @@ function New-GraphGetRequest {
                 if ($IncludeResponseHeaders) {
                     $GraphRequest.ResponseHeadersVariable = 'ResponseHeaders'
                 }
-                $Data = (Invoke-RestMethod @GraphRequest)
-                if ($CountOnly) {
+
+                if ($ReturnRawResponse) {
+                    $GraphRequest.SkipHttpErrorCheck = $true
+                    $Data = Invoke-WebRequest @GraphRequest
+                } else {
+                    $Data = (Invoke-RestMethod @GraphRequest)
+                }
+
+                if ($ReturnRawResponse) {
+                    if (Test-Json -Json $Data.Content) {
+                        $Content = $Data.Content | ConvertFrom-Json
+                    } else {
+                        $Content = $Data.Content
+                    }
+
+                    $Data | Select-Object -Property StatusCode, StatusDescription, @{Name = 'Content'; Expression = { $Content }}
+                    $nextURL = $null
+                } elseif ($CountOnly) {
                     $Data.'@odata.count'
                     $NextURL = $null
                 } else {
